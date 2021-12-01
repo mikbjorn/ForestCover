@@ -1,5 +1,5 @@
 ---
-title: "Analysis of cartographic Features and Forest Covertype"
+title: "Analysis of Cartographic Features and Forest Covertype"
 author: "Mikkel Bjornson"
 date: "10/9/2021"
 output: pdf_document
@@ -198,6 +198,7 @@ md_spruce_sum<- summary(md_spruce)
 ```
 
 ```{r, eval=FALSE}
+## logistic Regression - lodgepole
 selc_Lpine<- tree::tree(Lpine ~ Elevation + Aspect + Horz_dist_hydro + Vert_dist_hydro + Horz_dist_road + Hillshade9 + Hillshade12 + Hillshade3 + Horz_dist_fire, data = train)
 selector_Lpine<- summary(selc_Lpine)
 
@@ -206,6 +207,7 @@ md_Lpine_sum<- summary(md_Lpine)
 ```
 
 ```{r, eval=FALSE}
+## logistic Regression - ponderosa
 selc_pondr<- tree::tree(pondr ~ Elevation + Aspect + Horz_dist_hydro + Vert_dist_hydro + Horz_dist_road + Hillshade9 + Hillshade12 + Hillshade3 + Horz_dist_fire, data = train)
 selector_pondr<- summary(selc_pondr)
 
@@ -214,6 +216,7 @@ md_pondr_sum<- summary(md_pondr)
 ```
 
 ```{r, eval=FALSE}
+## logistic Regression - cottonwood
 selc_cotton<- tree::tree(cotton ~ Elevation + Aspect + Horz_dist_hydro + Vert_dist_hydro + Horz_dist_road + Hillshade9 + Hillshade12 + Hillshade3 + Horz_dist_fire, data = train)
 selector_cotton<- summary(selc_cotton)
 
@@ -223,6 +226,7 @@ md_cotton_sum <- summary(md_cotton)
 ```
 
 ```{r, eval=FALSE}
+## logistic Regression - aspen
 selc_aspen<- tree::tree(aspen ~ Elevation + Aspect + Horz_dist_hydro + Vert_dist_hydro + Horz_dist_road + Hillshade9 + Hillshade12 + Hillshade3 + Horz_dist_fire, data = train)
 selector_aspen<- summary(selc_aspen)
 
@@ -233,6 +237,7 @@ md_aspen_sum <- summary(md_aspen)
 
 
 ```{r, eval=FALSE}
+## logistic Regression - douglas fir
 selc_doug<- tree::tree(doug ~ Elevation + Aspect + Horz_dist_hydro + Vert_dist_hydro + Horz_dist_road + Hillshade9 + Hillshade12 + Hillshade3 + Horz_dist_fire, data = train)
 selector_doug<- summary(selc_doug)
 
@@ -241,6 +246,7 @@ md_doug_sum <- summary(md_doug)
 ```
 
 ```{r, eval=FALSE}
+## logistic Regression - krumholtz
 selc_krum<- tree::tree(krum ~ Elevation + Aspect + Horz_dist_hydro + Vert_dist_hydro + Horz_dist_road + Hillshade9 + Hillshade12 + Hillshade3 + Horz_dist_fire, data = train)
 selector_krum<- summary(selc_krum)
 
@@ -250,11 +256,13 @@ md_krum_sum <- summary(md_krum)
 
 
 ```{r, eval=FALSE}
+## model names
 models<- c("md_aspen", "md_cotton", "md_doug", "md_krum", "md_Lpine", "md_pondr", "md_spruce")
+## covertypes
 covers<- c("Aspen", "Cottonwood/Willow", "Douglas-fir", "Krummholz", 
            "Lodgepole Pine", "Ponderosa Pine", "Spruce/Fir")
 
-
+## predict using largest probability from all models
 preds_log<- matrix(0, nrow = nrow(test), ncol = length(models))
 for (i in 1:length(models)){
   md<- eval(parse(text=models[i]))
@@ -284,6 +292,7 @@ depth<- c(1,5,10,50,100,150,200,500,750,1000)
 v.acc<- c()
 t.acc<- c()
 
+## train depth of random forest
 for(i in 1:length(depth)){
   assign(paste('rf', depth[i], sep = ''), 
          ranger(cover_type ~. , data = df_train, num.trees = depth[i], mtry = mt, 
@@ -335,7 +344,7 @@ acc2[which.max(v.acc2),]
 ```
 
 ```{r}
-### Validating error rates
+### Validating error rates logistic regression
 
 data<- rbind(train, test) %>% dplyr::select(-c(wild_area))
 
