@@ -1,0 +1,292 @@
+---
+title: "Guessing the Types of Trees by Looking at Maps"
+author: "Mikkel Bjornson"
+date: "10/9/2021"
+output: pdf_document
+---
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+## set knit options
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE,
+                      dpi = 500)
+options(knitr.kable.NA = '')
+
+## libraries
+library(readr)
+library(tidyverse)
+library(magrittr)
+library(ranger)
+library(png)
+library(jpeg)
+library(here)
+library(patchwork)
+library(grid)
+library(gridtext)
+library(extrafont)
+library(colorspace)
+
+my_font<- "Futura Md BT" 
+
+## load data file and set column titles 
+col_types <- cols(.default = col_double())
+covtype <- read_csv("covtype.data", 
+    col_names = FALSE, col_types = col_types)
+names(covtype) <- c('Elevation', 'Aspect', 'Slope', 'Horz_dist_hydro', 'Vert_dist_hydro', 'Horz_dist_road', 'Hillshade9', 'Hillshade12', 'Hillshade3', 'Horz_dist_fire', 'Rawah', 'Neota', 'Comanche', 'Cache', 'sc1', 'sc2', 'sc3', 'sc4', 'sc5', 'sc6', 'sc7', 'sc8', 'sc9', 'sc10', 'sc11', 'sc12', 'sc13', 'sc14', 'sc15', 'sc16', 'sc17', 'sc18', 'sc19', 'sc20', 'cs21', 'sc22', 'sc23', 'sc24', 'sc25', 'sc26', 'sc27', 'sc28', 'sc29', 'sc30', 'sc31', 'sc32', 'sc33', 'sc34', 'sc35', 'sc36', 'sc37', 'sc38', 'sc39', 'sc40', 'cover_type')
+```
+
+
+```{r data cleaning}
+###clean up and reformat data
+### condense the four columns of wilderness areas into single row. 
+wild_area <- as.matrix(covtype[11:14])
+wild_area <- factor(wild_area %*% (1:4), labels = colnames(wild_area))
+### condense the 40 columns of soil type into a single col
+soil_type <- as.matrix(covtype[16:length(covtype)-1])
+soil_type <- factor(soil_type %*% (1:40), labels = colnames(soil_type))
+### create covtype2 by binding new columns with remaining cols
+covtype2 <- cbind(covtype[1:10], wild_area, soil_type, covtype[55])
+### change cover type into a factor variable with names of cover type. 
+covtype2$cover_type <- factor(covtype2$cover_type, labels = c("Spruce/Fir", "Lodgepole Pine", "Ponderosa Pine", "Cottonwood/Willow", "Aspen", "Douglas-fir", "Krummholz"))
+
+### collapse soil type down to similar climatic and geological zones. 
+sc <- c('sc1', 'sc2', 'sc3', 'sc4', 'sc5', 'sc6', 'sc7', 'sc8', 'sc9', 'sc10', 'sc11', 'sc12', 'sc13', 'sc14', 'sc15', 'sc16', 'sc17', 'sc18', 'sc19', 'sc20', 'cs21', 'sc22', 'sc23', 'sc24', 'sc25', 'sc26', 'sc27', 'sc28', 'sc29', 'sc30', 'sc31', 'sc32', 'sc33', 'sc34', 'sc35', 'sc36', 'sc37', 'sc38', 'sc39', 'sc40')
+elu <- c(replicate(6, 'elu27'), replicate(2, 'elu35'), 'elu42', replicate(4, 'elu47'), replicate(2, 'elu51'), replicate(2, 'elu61'), 'elu67', replicate(3, 'elu71'), replicate(2, 'elu72'), replicate(11, 'elu77'), replicate(6, 'elu87'))
+covtype2 %<>% mutate(soil_type = plyr::mapvalues(soil_type, from = sc, to = elu))
+
+## Indicator variable for Spruce/fir and Lodgpole pine
+#levels(covtype2$cover_type)
+covtype2$spruce<- factor(ifelse(covtype2$cover_type == "Spruce/Fir", 1,0))
+covtype2$Lpine<- factor(ifelse(covtype2$cover_type == "Lodgepole Pine", 1,0))
+covtype2$pondr<- factor(ifelse(covtype2$cover_type == "Ponderosa Pine", 1,0))
+covtype2$cotton<- factor(ifelse(covtype2$cover_type == "Cottonwood/Willow", 1,0))
+covtype2$aspen<- factor(ifelse(covtype2$cover_type == "Aspen", 1,0))
+covtype2$doug<- factor(ifelse(covtype2$cover_type == "Douglas-fir", 1,0))
+covtype2$krum<- factor(ifelse(covtype2$cover_type == "Krummholz", 1,0))
+```
+
+```{r photos}
+ponderosa<- readJPEG(here("images", "Pinus_ponderosa.JPG"), native = T) %>% rasterGrob()
+lodge<- readJPEG(here("images","lodgepole.JPG"), native = T) %>% rasterGrob()
+cotton<- readJPEG(here("images", "cottonwood.jpg")) %>% rasterGrob()
+doug<- readJPEG(here("images", "douglas.jpg")) %>% rasterGrob()
+spruce<- readJPEG(here("images", "spruce.jpg")) %>% rasterGrob()
+aspen<- readJPEG(here("images", "aspen.jpg")) %>% rasterGrob()
+krum<- readJPEG(here("images", "krumholtz.jpg")) %>% rasterGrob()
+
+
+i_pond<-qplot(geom = "blank")+
+  annotation_custom(ponderosa, xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf)+
+  theme(plot.background = element_blank(),
+        panel.background = element_blank(),
+        plot.caption = element_text(hjust = 0.5, size = 8),
+        text = element_text(family = my_font))+
+  labs(caption = str_wrap("by Walter Siegmund, distributed under the CC BY-SA 3.0", width = 35),
+       title = "A")
+
+i_lodge<- qplot(geom = "blank")+
+  annotation_custom(lodge, xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf)+
+  theme(plot.background = element_blank(),
+        panel.background = element_blank(),
+        plot.caption = element_text(hjust = 0.5, size = 8),
+        text = element_text(family = my_font))+
+  labs(caption = str_wrap("by Arthur Chapmann, distributed under the CC BY-NC-SA 2.0", width = 35),
+       title = "B")
+
+i_cotton<- qplot(geom = "blank")+
+  annotation_custom(cotton, xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf)+
+  theme(plot.background = element_blank(),
+        panel.background = element_blank(),
+        plot.caption = element_text(hjust = 0.5, size = 8),
+        text = element_text(family = my_font))+
+  labs(caption = str_wrap("by Matt Lavin, distributed under the CC BY-SA 2.0", width = 35),
+       title = "C")
+
+i_doug<- qplot(geom = "blank")+
+  annotation_custom(doug, xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf)+
+  theme(plot.background = element_blank(),
+        panel.background = element_blank(),
+        plot.caption = element_text(hjust = 0.5, size = 8),
+        text = element_text(family = my_font))+
+  labs(caption = str_wrap("by Paul Sableman, distributed under the CC BY 2.0", width = 35),
+       title = "D")
+
+i_spruce<- qplot(geom = "blank")+
+  annotation_custom(spruce, xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf)+
+  theme(plot.background = element_blank(),
+        panel.background = element_blank(),
+        plot.caption = element_text(hjust = 0.5, size = 8),
+        text = element_text(family = my_font))+
+  labs(caption = str_wrap("by Ali Eminov, distributed under the CC BY-NC 2.0", width = 35),
+       title = "E")
+
+i_aspen<- qplot(geom = "blank")+
+  annotation_custom(aspen, xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf)+
+  theme(plot.background = element_blank(),
+        panel.background = element_blank(),
+        plot.caption = element_text(hjust = 0.5, size = 8),
+        text = element_text(family = my_font))+
+  labs(caption = str_wrap("by Famartin, distributed under the CC BY-SA 3.0", width = 35),
+       title = "F")
+
+i_krum<- qplot(geom = "blank")+
+  annotation_custom(krum, xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf)+
+  theme(plot.background = element_blank(),
+        panel.background = element_blank(),
+        plot.caption = element_text(hjust = 0.5, size = 8),
+        text = element_text(family = my_font))+
+  labs(caption = str_wrap("by Famartin, distributed under the CC BY-SA 3.0", width = 35),
+       title = "G")
+
+blank<- plot_spacer()+
+  theme(plot.background = element_blank())
+
+cap<- wrap_elements(textbox_grob("A: Ponderosa Pine   
+                                 B: Lodgepole Pine    
+                                 C: Cotton Wood    
+                                 D: Douglas Fir    
+                                 E: Blue Spruce    
+                                 F:Aspen    
+                                 G: Krumholtz"))+
+  theme(plot.background = element_blank(),
+        text = element_text(family = my_font))
+
+p_layout<- c(
+  area(t=1 ,l=1 ,b=1 ,r=1 ), #A m_01
+  area(t=1 ,l=2 ,b=1 ,r=2 ), #B m_19
+  area(t=1 ,l=3 ,b=1 ,r=3 ), #C m_imp
+  area(t=1 ,l=4 ,b=1 ,r=4 ), #D p_crop
+  area(t=2 ,l=1 ,b=2 ,r=1 ), #E p_dec
+  area(t=2 ,l=2 ,b=2 ,r=2 ), #F
+  area(t=2 ,l=3 ,b=2 ,r=3 ), #G
+  area(t=2 ,l=4 ,b=2 ,r=4 )) #H
+  
+
+```
+
+Driving across Colorado, we experience environments from Grasslands and semi-desert shrub land to montane forest and alpine tundra. The state has a diversity of habitats each with their own plants and animals. We focus on the trees within these habitats. The goal is to know where each species of tree is located. However, Imagine the difficulty of mapping each tree individually. Even visiting all the trees in a national park would be a time consuming ordeal. Add to that the time and expense of recording the species and location and it becomes unpractical. Knowing this information exactly, could extend our knowledge of the ecosystem and effects of climate change. It would also be useful in land management, but not at this expense. Since we cannot get this kind of exact data, the next best thing is a good estimate.  
+
+```{r,  fig.height= 6, fig.width=8}
+i_pond +i_lodge +i_cotton + i_doug + i_spruce+ i_aspen + i_krum+ cap +
+  plot_layout(design = p_layout)+
+  plot_annotation(title = "Common Trees in Colorado",
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 26),
+                                plot.background = element_rect(fill = "#eddeb4")))
+```
+
+To make estimates, we start with a publicly available cover type data set (Bache & Lichman 2013). It contains records for 30 meter by 30 meter plots. Many physical characteristics such as the elevation of the plot, slope of the land, and distance to water are easily found on maps. A total of twelve different characteristics were recorded. These measurements were made for over 580,000 plots. This would cover an area slightly smaller than Redwood National Park. In addition, the dominant tree species was obtained from USGS and USFS data. A total of seven different tree species were recorded. 
+
+Comparing the information from the maps with the data about tree species, all 12 characteristics recorded played some role in tree type. Elevation stood out as one of the most important. Each species appears to have a range of preferred elevations. This strong relationship is good news. It provides a powerful tool when attempting to estimate the tree type. For example, if a plot of land has an elevation of about 3200 meters, we can look at the graphs below and see that spruce/fir are the most common type and therefore most likely. However, we can do even better at these predictions by incorporating more sophisticated methods. 
+
+
+```{r}
+cov_labs <- levels(covtype2$cover_type)
+cov_labs<- cov_labs[c(4,5,6,7,3,2,1)]
+
+labels <- covtype2 %>% 
+  mutate(cover_type = factor(cover_type, levels = cov_labs))%>%
+  group_by(cover_type) %>%  
+  summarise(xPos = median(Elevation),
+            yPos = max((density(Elevation))$y))
+
+pal<- qualitative_hcl(7, palette = "Harmonic")
+
+
+covtype2 %>% mutate(cover_type = factor(cover_type, levels = cov_labs))%>%
+ggplot( aes(Elevation, fill=cover_type)) +
+  geom_density(alpha=0.9)+
+  geom_label(data = labels, aes(x= xPos, y=yPos, label = cover_type), nudge_y = 0.0002)+
+  scale_color_manual(values = pal)+
+  scale_fill_manual(values = pal)+
+  scale_x_continuous(breaks = seq(2000,4000,200))+
+  theme(plot.background = element_blank(),
+        panel.background = element_blank(), 
+        legend.position = "none",
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        text = element_text(family = my_font, size=12))+
+  labs(title = "Prefered Elevations",
+       x= "Elevation (meters)")
+```
+
+Two different methods were attempted to make predictions. The first method is multi-class logistic regression. This model predicts the odds a plot has each type of tree. We then classify the plot as containing the tree with the largest odds. Unfortunately, this model did not perform very well. It classified only about 35% of the plots accurately. This is still more accurate than randomly guessing one of the seven tree types, but not really useful. Further investigation revealed that this likely happened because logistic regression is not flexible enough. It allows the odds of a tree species to go up as elevation goes up, but it does not allow those odds to go back down once the elevation is beyond the ideal level. 
+
+The second method is Random Forest Classifier and it is much more flexible. Using a computer, a sample of the data is selected and used to make a decision tree. The computer did this a total of 200 times. Below is an example of a decision tree. The tree splits as we travel down based upon different characteristics of the plot. To make a prediction we follow the splits based upon the values for the plot until we get to a tree species. The Random Forest model uses all 200 trees, makes 200 estimates, then averages the estimates together. This allowed the estimates to be correct 96.5% of the time. 
+
+
+```{r, fig.width=8}
+set.seed(123)
+selector <- tree::tree(cover_type ~ Elevation + Aspect + Horz_dist_hydro + Vert_dist_hydro + Horz_dist_road + Hillshade9 + Hillshade12 + Hillshade3 + Horz_dist_fire, 
+                       data = covtype2)
+
+plot(selector)
+text(selector)
+```
+
+Despite the good overall estimation rate, some species are predicted better than others. Lodgepole and Ponderosa pine were both predicted with over 97% accuracy. Cottonwood was predicted at about 87% accuracy, and Aspen at only 84.7% accuracy. The large difference in per species prediction rates leaves room for more improvement. Possible paths toward better accuracy include finding and using more map features, and the application of more powerful methods. Further research will likely yield even better predictions. 
+
+# Citations
+
+Bache, K. & Lichman, M. (2013). UCI Machine Learning Repository <https://archive.ics.uci.edu/ml/datasets/covertype>. Irvine, CA: University of California, School of Information and Computer Science
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
