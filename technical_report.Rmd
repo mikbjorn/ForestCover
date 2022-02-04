@@ -35,124 +35,113 @@ soil_type <- as.matrix(covtype[16:length(covtype)-1])
 soil_type <- factor(soil_type %*% (1:40), labels = colnames(soil_type))
 ### create covtype2 by binding new columns with remaining cols
 covtype2 <- cbind(covtype[1:10], wild_area, soil_type, covtype[55])
-### change cover type into a factor variable with names of cover type. 
-covtype2$cover_type <- factor(covtype2$cover_type, labels = c("Spruce/Fir", "Lodgepole Pine", "Ponderosa Pine", "Cottonwood/Willow", "Aspen", "Douglas-fir", "Krummholz"))
+
 
 ### collapse soil type down to similar climatic and geological zones. 
 sc <- c('sc1', 'sc2', 'sc3', 'sc4', 'sc5', 'sc6', 'sc7', 'sc8', 'sc9', 'sc10', 'sc11', 'sc12', 'sc13', 'sc14', 'sc15', 'sc16', 'sc17', 'sc18', 'sc19', 'sc20', 'cs21', 'sc22', 'sc23', 'sc24', 'sc25', 'sc26', 'sc27', 'sc28', 'sc29', 'sc30', 'sc31', 'sc32', 'sc33', 'sc34', 'sc35', 'sc36', 'sc37', 'sc38', 'sc39', 'sc40')
 elu <- c(replicate(6, 'elu27'), replicate(2, 'elu35'), 'elu42', replicate(4, 'elu47'), replicate(2, 'elu51'), replicate(2, 'elu61'), 'elu67', replicate(3, 'elu71'), replicate(2, 'elu72'), replicate(11, 'elu77'), replicate(6, 'elu87'))
-covtype2 %<>% mutate(soil_type = plyr::mapvalues(soil_type, from = sc, to = elu))
 
 ## Indicator variable for Spruce/fir and Lodgpole pine
 #levels(covtype2$cover_type)
-covtype2$spruce<- factor(ifelse(covtype2$cover_type == "Spruce/Fir", 1,0))
-covtype2$Lpine<- factor(ifelse(covtype2$cover_type == "Lodgepole Pine", 1,0))
-covtype2$pondr<- factor(ifelse(covtype2$cover_type == "Ponderosa Pine", 1,0))
-covtype2$cotton<- factor(ifelse(covtype2$cover_type == "Cottonwood/Willow", 1,0))
-covtype2$aspen<- factor(ifelse(covtype2$cover_type == "Aspen", 1,0))
-covtype2$doug<- factor(ifelse(covtype2$cover_type == "Douglas-fir", 1,0))
-covtype2$krum<- factor(ifelse(covtype2$cover_type == "Krummholz", 1,0))
+
+covtype2<- covtype2 %>%
+  mutate(soil_type = plyr::mapvalues(soil_type, from = sc, to = elu),
+         ### change cover type into a factor variable with names of cover type. 
+         cover_type =  factor(cover_type, 
+                              labels = c("Spruce/Fir", "Lodgepole Pine", 
+                                         "Ponderosa Pine", "Cottonwood/Willow", 
+                                         "Aspen", "Douglas-fir", "Krummholz")),
+         spruce = factor(ifelse(cover_type == "Spruce/Fir", 1,0)),
+         Lpine = factor(ifelse(cover_type == "Lodgepole Pine", 1,0)), 
+         pondr = factor(ifelse(cover_type == "Ponderosa Pine", 1,0)),
+         cotton = factor(ifelse(cover_type == "Cottonwood/Willow", 1,0)), 
+         aspen = factor(ifelse(cover_type == "Aspen", 1,0)),
+         doug = factor(ifelse(cover_type == "Douglas-fir", 1,0)),
+         krum = factor(ifelse(cover_type == "Krummholz", 1,0)))%>%      ## Aspect as a factor
+  mutate(Aspect = ifelse(Aspect> 337.5, 0, Aspect),      
+         Aspect = ifelse( Aspect < 22.5, 0, Aspect),
+         Aspect = ifelse( Aspect > 22.5 & Aspect< 67.5, 1, Aspect),
+         Aspect = ifelse( Aspect > 67.5 & Aspect< 112.5, 2, Aspect),
+         Aspect = ifelse( Aspect > 112.5 & Aspect< 157.5, 3, Aspect),
+         Aspect = ifelse( Aspect > 157.5 & Aspect< 202.5, 4, Aspect),
+         Aspect = ifelse( Aspect > 202.5 & Aspect< 247.5, 5, Aspect),
+         Aspect = ifelse( Aspect > 247.5 & Aspect< 292.5, 6, Aspect),
+         Aspect = ifelse( Aspect > 292.5 & Aspect< 337.5, 7, Aspect),
+         Aspect = factor(Aspect, levels = 0:7, 
+                         labels = c("N", "NE", "E", "SE", 
+                                    "S", "SW", "W", "NW")))
+
+
 ```
 
 ```{r, include=FALSE}
 ## remove extra unused variables
 rm("wild_area", "soil_type", "elu", "sc", "col_types", "covtype")
-gc()
+gc(verbose = F)
 ```
 
-```{r plot creation, eval=FALSE}
+```{r}
+## random sample of plots
+set.seed(5419)
+samp<- sample(1:581012, 5000, replace = F)
+cov_s<- covtype2[samp,]
+
+```
+
+```{r plot creation, eval=FALSE, fig.width=10}
 ### Data exploration
 ### numerical summary of all columns
-sum<- summary(covtype2)
+sum<- summary(cov_s)
 
-Lpine_sum <- summary(covtype2[covtype2$Lpine ==1,])
-NLpine_sum <- summary(covtype2[covtype2$Lpine ==0,])
+Lpine_sum <- summary(cov_s[cov_s$spruce ==1,])
+NLpine_sum <- summary(cov_s[cov_s$spruce ==0,])
 
-###graphical analysis
-### violin plots of elevation vs cover type
-p1<- ggplot(data = covtype2, aes(Elevation, spruce))+geom_violin()
-p2<- ggplot(data = covtype2, aes(Elevation, Lpine))+geom_violin()
+pairs(cov_s[,1:6])
+pairs(cov_s[,7:12])
+cor(cov_s[,c(1,3,4,5,6,7,8,9,10)])
+## Hillshade12:Slope -0.5199
+## Vert_dist_hydro: Horz_dist_hydro 0.5942
+## Hillshade_3:Hillshape_9 -0.7791
 
-### examining Aspect
-p3s<- ggplot(data = covtype2, aes(Aspect, spruce))+geom_violin()
-p3l<- ggplot(data = covtype2, aes(Aspect, Lpine))+geom_violin()
-
-### examining Slope
-p4s<- ggplot(data = covtype2, aes(Slope, spruce))+ geom_violin()
-p4l<- ggplot(data = covtype2, aes(Slope, Lpine))+ geom_violin()
-
-### examine Horizontal distant to water
-p5s<- ggplot(data = covtype2, aes(Horz_dist_hydro, spruce))+ geom_violin()
-p5l<- ggplot(data = covtype2, aes(Horz_dist_hydro, Lpine))+ geom_violin()
-
-### examining vertical distance to water
-p6s<- ggplot(data = covtype2, aes(Vert_dist_hydro, spruce))+ geom_violin()
-p6l<- ggplot(data = covtype2, aes(Vert_dist_hydro, Lpine))+ geom_violin()
-
-### examining horizontal distance to road
-p7s<- ggplot(data = covtype2, aes(Horz_dist_road, spruce))+ geom_violin()
-p7l<- ggplot(data = covtype2, aes(Horz_dist_road, Lpine))+ geom_violin()
-
-### examining Hillshade at 9am
-p8s<- ggplot(data = covtype2, aes(Hillshade9, spruce))+geom_violin()
-p8l<- ggplot(data = covtype2, aes(Hillshade9, Lpine))+geom_violin()
-
-### examining hillshade at noon
-p9s<- ggplot(data = covtype2, aes(Hillshade12, spruce))+geom_violin()
-p9l<- ggplot(data = covtype2, aes(Hillshade12, Lpine))+geom_violin()
-
-### examining hillshade at 3pm
-p10s<- ggplot(data = covtype2, aes(Hillshade3, spruce))+geom_violin()
-p10l<- ggplot(data = covtype2, aes(Hillshade3, Lpine))+geom_violin()
-
-### examining horizontal distance to fire point
-p11s<- ggplot(data = covtype2, aes(Horz_dist_fire, spruce))+geom_violin()
-p11l<- ggplot(data = covtype2, aes(Horz_dist_fire, Lpine))+geom_violin()
-
-### examining soiltype
-p12s<- ggplot(data = covtype2, aes(soil_type))+geom_bar()+facet_wrap(~spruce)+
-  theme(axis.text.x = element_text(angle = 30))
-p12l<- ggplot(data = covtype2, aes(soil_type))+geom_bar()+facet_wrap(~Lpine)+
-  theme(axis.text.x = element_text(angle = 30))
-### scatter plot indicating the covertypes found in the four different wilderness areas
-p13<- ggplot(data = covtype2, aes(cover_type))+geom_bar()+facet_wrap(~wild_area)+
-  theme(axis.text.x = element_text(angle = 20))
 ```
 
 ```{r question 1, message=FALSE, warning=FALSE}
 ### Question 1: To what degree is the cover type being Spruce/Fir associated with elevation, accounting for the effect of other cartographical variables?
 
-### fit model with all variables
-md1 <- glm(spruce ~ Elevation + Aspect + Slope + Horz_dist_hydro + Vert_dist_hydro + Horz_dist_road + Hillshade9 + Hillshade12 + Hillshade3 + Horz_dist_fire , data = covtype2, family = binomial)
+
+### fit model with all variables 
+### excluding hillshade12, horz_dist_water, and Hillshade9 do to possible colinearity 
+md1 <- glm(spruce ~ Elevation * Aspect * Slope + Vert_dist_hydro  + Horz_dist_road + 
+             Hillshade3 + Horz_dist_fire , data = cov_s, family = binomial)
 
 md1_s <- summary(md1)
 
-### Reduced Model - Only Elevation
+### Reduced Model - drop Elevation interactions
 
-md2<- glm(spruce ~ Elevation, data = covtype2, family = binomial)
+md2<- glm(spruce ~ Elevation + Aspect * Slope + Vert_dist_hydro  + Horz_dist_road + 
+             Hillshade3 + Horz_dist_fire , data = cov_s, family = binomial)
 
 md2_s<- summary(md2)
 
-### Drop in Deviance
-md1_md2<- anova(md2, md1)
 
-pv1_2<- 1- pchisq(md1_md2$Deviance[2],md1_md2$Df[2])
+### Drop in Deviance - Favored smaller model
+md1_md2<- anova(md2, md1, test = "Chisq")
 
 
 ### Reduced model - Only hill features
-md3<- glm(spruce ~ Elevation+ Aspect + Slope + Hillshade9 + Hillshade12 + Hillshade3, 
-          data = covtype2, family = binomial)
+md3<- glm(spruce ~ Elevation + Aspect * Slope + Vert_dist_hydro, 
+          data = cov_s, family = binomial)
 
 md3_s <- summary(md3)
 
 ### Drop in Deviance
-md1_md3<- anova(md3, md1)
+md2_md3<- anova(md3, md2, test = "Chisq")
 
-pv1_3<- 1- pchisq(md1_md3$Deviance[2],md1_md3$Df[2])
+#pv1_3<- 1- pchisq(md1_md3$Deviance[2],md1_md3$Df[2])
 
 
 ### isolate effect of elevation
-effect <- cbind(Elevation = c(3300, 3400), Aspect = replicate(2, mean(covtype2$Aspect)), 
+effect <- data.frame(Elevation = c(3300, 3400), Aspect = replicate(2, covtype2$Aspect[1]), 
                 Slope = replicate(2, mean(covtype2$Slope)), 
                 Horz_dist_hydro = replicate(2, mean(covtype2$Horz_dist_hydro)),
                 Vert_dist_hydro = replicate(2, mean(covtype2$Vert_dist_hydro)),
@@ -162,13 +151,16 @@ effect <- cbind(Elevation = c(3300, 3400), Aspect = replicate(2, mean(covtype2$A
                 Hillshade3 = replicate(2, mean(covtype2$Hillshade3)),
                 Horz_dist_fire = replicate(2, mean(covtype2$Horz_dist_fire))
                 )
-effect %<>% data.frame()
-pred_md1<- exp(predict(md1, effect))
-effect_size <- pred_md1[2]/pred_md1[1] ### odds ratio with increase of 100 meters
 
-confidence<- confint(md1)
+pred_md3<- exp(predict(md3, effect))
+effect_size <- pred_md3[2]/pred_md3[1] ### odds ratio with increase of 100 meters
+
+confidence<- confint(md3, type = "response")
 lower<- exp(confidence[2])**100
-upper<- exp(confidence[13])**100
+upper<- exp(confidence[20])**100
+
+hyd_lower<- exp(confidence[11])**50
+hyd_upper<- exp(confidence[29])**50
 ```
 
 
@@ -421,11 +413,15 @@ The analysis uses the cover type data (Bache and Lichman 2013). Four wilderness 
 |soil_type| Indicates which of the 40 different soil types is present in the plot|
 |cover_type| Indicates the dominant tree species on the plot|
 
-Analysis begins with an inferential study of the effects of elevation on spruce/fir cover when controlling for other cartographic variables. The cover type variable is reduced to a binary response. Logistic Regression methods are selected for the inferential analysis (Kutner et al 2004, James et al 2021). A full model, a reduced model removing all distance measures, and a reduced model with only elevation are fit. Drop in deviance testing is used to determine the best model.  
+Analysis begins with an inferential study of the effects of elevation on spruce/fir cover when controlling for other cartographic variables. There is some concern about lack of independence between observations. The large number of observations additionally provide very large degrees of freedom. To help alleviate both problems, inference is conducted on a random sample of 5000 observations. The cover type variable is reduced to a binary response. Aspect is reduced to a factor variable indicating cardinal or primary intercardinal direction. 
 
-Further analysis focuses on the predictive power of cartographic features. Both a multiclass logistic model using a one vs. rest method (Kutner et al 2004, James et al 2021), and a multiclass random forest (James et al 2021) are explored. The multiclass logistic regression model split the cover type variable into 7 binary response variables. Logistic regression models are built for each cover type, using a classification tree to select explanatory variables. Predictions are given by the model with the largest response value. The several random forest models are built with varying numbers of trees and features to split. The model with the lowest validation error is selected. 
+Initial exploration, revealed apparent differences in elevation for each the seven cover types. There is also apparent differences between soil and cover type. However, there are no recorded instances of spruce cover in Montane alluvial soil (type elu51). It is unknown whether spruce cannot grow in this soil type or it is just not observed. The Cache wild area also has no plots with spruce trees. The perfect separation prevents the use of maximum likelihood methods, and thus was thus excluded from the logistical regression analyses. Examination of the correlation matrix and scatter plot matrix finds some multicolinearity between Hillshade12 and Slope (r = -0.5199), Vert_dist_hydro and Horz_dist_hydro (r= 0.5942), and Hillshade_3 and Hillshade_9 (r= -0.7791). Hillshade12, Horz_dist_hydro, and Hillshade_9 were dropped as they had larger correlation coefficients with other explanatory variables. 
 
-Initial exploration, revealed apparent differences in elevation for each the seven cover types. There is also apparent differences between soil and cover type. However, there are no recorded instances of spruce cover in Montane alluvial soil (type elu51). It is unknown whether spruce cannot grow in this soil type or it is just not observed. The perfect separation prevents the use of maximum likelihood methods, and thus has to be excluded from the logistical regression analyses. There was no strong graphical evidence of associations with the other variables.
+Logistic Regression methods are selected for the inferential analysis (Kutner et al 2004, James et al 2021).  A full model is fit including all remaining explanatory variables and interactions between elevation, slope, and aspect of the hill. Insignificant variables and interactions are dropped from the model. The drop in deviance test is used to determine appropriateness of dropping variables. The final model is the remaining reduced model.
+
+Further analysis focuses on the predictive power of cartographic features. Both a multiple logistic regression models using a one vs. rest method (Kutner et al 2004, James et al 2021), and a multiclass random forest (James et al 2021) are explored. The covertype data is split into training(60%), validation(20%), and test(20%). The multiple logistic regression models split the cover type variable into 7 binary response variables. Logistic regression models are built for each cover type, using a classification tree to select explanatory variables. Predictions are determined by the model with the largest response value. The several random forest models are built with varying numbers of trees and features to split. The model with the lowest validation error is selected. 
+
+
 
 # Statistical Modeling
 
@@ -434,48 +430,50 @@ Initial exploration, revealed apparent differences in elevation for each the sev
 Three models are fit to the data set for the purpose of estimating the effect of elevation on Spruce/Fir tree cover. An initial rich model is fit using all available variables. 
 
 $$\begin{aligned}
-logit(spruce/fir) = \beta_0 + \beta_1(Elevation) +\beta_2(Aspect) +\beta_3(Slope) +\beta_4(Horz\_dist\_hydro) +\beta_5(Vert\_dist\_hydro)+\dots \\ \beta_6(horz\_dist\_road+\beta_7(Hillshade9)+ \beta_8(Hillshade12) +\beta_9(Hillshade3) +\beta_{10}(Horz\_dist\_fire)+ \epsilon
+logit(spruce/fir) = \beta_0 + \beta_1(Elevation) +\beta_2(Aspect) +\beta_3(Slope) +\beta_4(Vert\_dist\_hydro) +\dots \\ \beta_5(horz\_dist\_road)+ \beta_6(Hillshade3) +\beta_{7}(Horz\_dist\_fire)+ \beta_8 (Elevation*Aspect)+ \dots \\ \beta_9(Elevation*Slope)+ \beta_{10}(Aspect*Slope)+ \beta_{11}(Elevation*Aspect*Slope)
 \end{aligned}$$
 
 Two reduced models are also evaluated:             
 - reduced model 1:               
-$$logit(spruce/fir) = \beta_0 + \beta_1(Elevation)+ \epsilon$$
+$$\begin{aligned}
+logit(spruce/fir) = \beta_0 + \beta_1(Elevation) +\beta_2(Aspect) +\beta_3(Slope) +\beta_4(Vert\_dist\_hydro) +\dots \\ \beta_5(horz\_dist\_road)+ \beta_6(Hillshade3) +\beta_{7}(Horz\_dist\_fire)+ \beta_8 (Aspect*Slope)
+\end{aligned}$$
 
 - reduced model 2:                 
 $$\begin{aligned}
-logit(spruce/fir) = \beta_0 + \beta_1(Elevation) +\beta_2(Aspect) +\beta_3(Slope)+\dots \\ \beta_7(Hillshade9)+ \beta_8(Hillshade12) +\beta_9(Hillshade3)+ \epsilon
+logit(spruce/fir) = \beta_0 + \beta_1(Elevation) +\beta_2(Aspect) +\beta_3(Slope) +\beta_4(Vert\_dist\_hydro) +\dots \\ \beta_5(horz\_dist\_road)+ \beta_6(Hillshade3) +\beta_{7}(Horz\_dist\_fire)+ \beta_8 (Aspect*Slope)
 \end{aligned}$$
 
 ## Predictive model
 
 The first predictive model is a multiclass logistic predictive model fit the following logistic models:
 
-$$logit(spruce/fir) = \beta_0 + \beta_1(Elevation)+ \epsilon$$
+$$logit(spruce/fir) = \beta_0 + \beta_1(Elevation)$$
 
-$$logit(Lodge\ pole\ pine) = \beta_0 + \beta_1(Elevation)+ \epsilon$$
+$$logit(Lodge\ pole\ pine) = \beta_0 + \beta_1(Elevation)$$
 
-$$\begin{aligned} logit(spruce/fir) = \beta_0 + \beta_1(Elevation) +\beta_2(Vert\_dist\_hydro)+ \beta_3(horz\_dist\_road+\dots \\ \beta_4(Hillshade9) +\beta_5(Hillshade3) + \epsilon
+$$\begin{aligned} logit(spruce/fir) = \beta_0 + \beta_1(Elevation) +\beta_2(Vert\_dist\_hydro)+ \beta_3(horz\_dist\_road+\dots \\ \beta_4(Hillshade9) +\beta_5(Hillshade3)
 \end{aligned}$$
 
 $$\begin{aligned}
 logit(cottonwood) = \beta_0 + \beta_1(Elevation) +\beta_2(Horz\_dist\_hydro)+  \beta_3(horz\_dist\_road) +\dots \\ \beta_4(Hillshade9) +\beta_5(Horz\_dist\_fire)+ \epsilon
 \end{aligned}$$
 
-$$logit(Douglas\ fir) = \beta_0 + \beta_1(Elevation)+ \epsilon$$
+$$logit(Douglas\ fir) = \beta_0 + \beta_1(Elevation)$$
 
-$$logit(Krummholz) = \beta_0 + \beta_1(Elevation)+ \epsilon$$
+$$logit(Krummholz) = \beta_0 + \beta_1(Elevation)$$
 
-$$logit(Ponderosa Pine) = \beta_0 + \beta_1(Elevation)+ \beta_2(Hillshae12)+ \epsilon$$
+$$logit(Ponderosa Pine) = \beta_0 + \beta_1(Elevation)+ \beta_2(Hillshae12)$$
 Using a one vs. rest strategy, the model producing the largest response indicates the predicted value. 
 
 The second predictive model is a Random Forest model with 200 trees.
 
 # Results
 ## Inferential study
-The full model is chosen over both reduced models using the drop in deviance test (reduced model 1: p-value<0.00001, reduced model 2: p-value<0.00001). The table below indicates all explanatory variables contributed to the model. Isolating elevation, there is evidence to suggest that elevation is associated with the presence of spruce/fir as the dominant tree cover (p-value < 0.00001). With 95% confidence, the logistic model estimates the presence of spruce/fir cover increases by between `r round((lower - 1)*100,2)`% and `r round((upper -1)*100,2)`% for every 100 meter increase in elevation.       
+The second reduced model is chosen over both the full and first reduced models using the drop in deviance test (Full model vs reduced model 2: p-value<0.1669). The table below indicates Elevation and Vertical distance to water have significant responses. There is weak evidence of significant response to slope and interaction between slope and aspect. Isolating elevation, there is evidence to suggest that elevation is associated with the presence of spruce/fir as the dominant tree cover (p-value < 0.00001). With 95% confidence, the logistic model estimates the presence of spruce/fir cover increases by between `r round((lower - 1)*100,2)`% and `r round((upper -1)*100,2)`% for every 100 meter increase in elevation. There is also an estimated decrease in the odds of spruce and firs trees by between `r round((hyd_upper -1)*-100,2)`% and `r round((hyd_lower - 1)*-100,2)`% per 50m increase in vertical distance to water with 95% confidence.       
 
 ```{r}
-knitr::kable(round(coef(md1_s),5))
+knitr::kable(round(coef(md3_s),5))
 ```
 
 ## Predictive Model
@@ -503,75 +501,18 @@ knitr::kable(props)
 
 # Conclusion
 
-Elevation and other cartographic features appear to be associated with the dominant tree species in forests of Roosevelt National Forest. There is an estimated increase in the chance of finding spruce/fir between `r round((lower - 1)*100,2)`% and `r round((upper -1)*100,2)`% per 100 meter increase in elevation. This suggests that spruce/fir forests perhaps favor higher elevations. In addition, the model finds significant effects on spruce/fir for all other variables. Although not the main focus on this study, this does suggest that the dominant species in forest cover is a complex mix of different environmental factors. 
+Elevation and other cartographic features appear to be associated with the dominant tree species in forests of Roosevelt National Forest. There is an estimated increase in the chance of finding spruce/fir between `r round((lower - 1)*100,2)`% and `r round((upper -1)*100,2)`% per 100 meter increase in elevation. This suggests that spruce/fir forests perhaps favor higher elevations. The negative association with vertical distance to water suggests spruce and fir will only prefer the higher elevations as long as they are not too far from water. Although the other variables were not found to be significant, the drop in deviance test suggest they are still important factors. The possible lack independence between the observations and the removal of variables from analysis leave some room for skepticism while interpreting these results. 
 
 When attempting to predict forest cover, the logistic model failed to capture the complexity of the system with an accuracy rate of about 65%. The Random Forest model managed about a 96% success rate. The ability of random forest models to manage non-monotonic changes is likely a factor in the higher success rates. Further model building using xgboost and neural networks could possibly increase the predictive accuracy even further. 
 
 # Citations
+
+Blackard, Jock A. 1998. "Comparison of Neural Networks and Discriminant Analysis in Predicting Forest Cover Types." Ph.D. dissertation. Department of Forest Sciences. Colorado State University. Fort Collins, Colorado. 165 pages.
 
 Bache, K. & Lichman, M. (2013). UCI Machine Learning Repository <https://archive.ics.uci.edu/ml/datasets/covertype>. Irvine, CA: University of California, School of Information and Computer Science
 
 Kutner, M. H., Nachtsheim, C. J., &amp; Neter, J. (2004). Applied Linear Regression Models (fourth). McGraw-Hill Irwin. 
 
 James, G., Witten, D., Hastie, T., &amp; Tibshirani, R. (2021). An introduction to statistical learning with applications in R. Springer.  
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
