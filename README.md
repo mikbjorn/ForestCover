@@ -1,5 +1,5 @@
 # Analysis of Cartographic Features and Forest Cover Type
-Authur: Mikkel Bjornson
+Author: Mikkel Bjornson
 
 # Background
 The analysis focused on Dominant tree cover in the Covertype dataset (Bache and Lichman 2013). Knowledge of dominant tree species typically requires boots on the ground, a difficult task in remote areas. Cartographic features can easily be extract from a GIS. This study explores associations between cartographic features and cover type with the goal of predicting dominant tree species. 
